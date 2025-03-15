@@ -1,0 +1,10 @@
+{
+  "myPosAudio.Id": {
+    "LocationName": "Mountain",
+    "TilePosition": { "X": 12, "Y": 15 },
+    "CueName": "musicOrSound.id",
+    "AudibleDistance": 8.0,
+    "RepeatDelay": [ 1500, 2150, 2420 ], // only valid for sfx
+    "Condition": "GSQ here"
+  }
+}
