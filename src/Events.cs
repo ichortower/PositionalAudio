@@ -16,10 +16,7 @@ internal sealed class Events
 
     public static void OnAssetReady(object sender, AssetReadyEventArgs e)
     {
-        if (e.NameWithoutLocale.IsEquivalentTo(AudioPlayer.AssetName)) {
-            AudioPlayer.LoadData();
-        }
-        else if (e.NameWithoutLocale.IsEquivalentTo("Data/AudioChanges")) {
+        if (e.NameWithoutLocale.IsEquivalentTo("Data/AudioChanges")) {
             AudioPlayer.ReplaceCues();
         }
     }

@@ -11,15 +11,17 @@ internal sealed class AudioPlayer
 {
     public static string AssetName = $"Mods/{Main.ModId}/Data";
 
-    private static Dictionary<string, AudioItem> Data = new();
     private static Dictionary<string, AudioItem> ActiveItems = new();
     private static Vector2 CachedPlayerPosition = Vector2.Zero;
     private static HashSet<string> MissingCues = new();
 
-    public static void LoadData()
-    {
-        Data = Game1.content.Load<Dictionary<string, AudioItem>>(AssetName);
+    public static Dictionary<string, AudioItem> Data {
+        get {
+            _Data ??= Game1.content.Load<Dictionary<string, AudioItem>>(AssetName);
+            return _Data;
+        }
     }
+    private static Dictionary<string, AudioItem> _Data = null;
 
     public static void ClearActive(bool maintainPlaying = false)
     {
@@ -37,14 +39,13 @@ internal sealed class AudioPlayer
 
     public static void Invalidate()
     {
-        Data.Clear();
+        _Data = null;
         ClearActive(maintainPlaying: true);
         MissingCues.Clear();
     }
 
     public static void Filter(GameLocation gl = null)
     {
-        LoadData();
         if (gl == null) {
             ClearActive();
             return;
