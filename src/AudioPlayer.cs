@@ -124,14 +124,46 @@ internal sealed class AudioPlayer
     }
 }
 
+internal sealed class AudioRadius
+{
+    private float _floor = 2f;
+    public float Floor {
+        get {
+            return _floor;
+        }
+        set {
+            _floor = MathF.Max(0f, value);
+        }
+    }
+
+    private float _shelf = 4f;
+    public float Shelf {
+        get {
+            return _shelf;
+        }
+        set {
+            _shelf = MathF.Max(0f, value);
+        }
+    }
+
+    private float _maximum = 8f;
+    public float Maximum {
+        get {
+            return _maximum;
+        }
+        set {
+            _maximum = MathF.Max(0f, value);
+        }
+    }
+}
+
 internal sealed class AudioItem
 {
-    public float AudibleDistance = 0f;
     public string Condition = "";
     public string CueName = "";
-    public float FullVolumeRadius = 0f;
     public string LocationName = "";
     public float MaximumIntensity = 1.0f;
+    public AudioRadius Radius = new();
     //public List<int> RepeatDelay = new();
     public Point TilePosition = new(-1, -1);
 
@@ -141,12 +173,15 @@ internal sealed class AudioItem
     public AudioItem Clone()
     {
         AudioItem ret = new() {
-            AudibleDistance = this.AudibleDistance,
             Condition = this.Condition,
             CueName = this.CueName,
-            FullVolumeRadius = this.FullVolumeRadius,
             LocationName = this.LocationName,
             MaximumIntensity = this.MaximumIntensity,
+            Radius = new AudioRadius {
+                Floor = this.Radius.Floor,
+                Shelf = this.Radius.Shelf,
+                Maximum = this.Radius.Maximum,
+            },
             TilePosition = this.TilePosition,
         };
         return ret;
@@ -166,33 +201,37 @@ internal sealed class AudioItem
         Vector2 playerPos = Game1.player.getStandingPosition() / 64f;
         Vector2 myPos = new(TilePosition.X + 0.5f, TilePosition.Y + 0.5f);
         float dist = Vector2.Distance(myPos, playerPos);
-        float intensity;
-        // clamp max intensity for sanity
-        float max = MathF.Max(0f, MathF.Min(MaximumIntensity, 1f));
-        if (dist <= FullVolumeRadius) {
-            intensity = max;
+        // clamp radius values and max intensity for sanity
+        float maxi = MathF.Max(0f, MathF.Min(MaximumIntensity, 1f));
+        float floor = MathF.Min(Radius.Floor, Radius.Maximum);
+        float shelf = MathF.Min(Radius.Shelf, Radius.Maximum);
+
+        Func<float, float, float, float> Curve = (min, max, t) => {
+            if (t <= min) {
+                return 0f;
+            }
+            if (t >= max) {
+                return 1f;
+            }
+            return MathF.Sqrt((t - min) / (max - min));
+        };
+
+        Cue.Volume = maxi * (1f - Curve(floor, Radius.Maximum, dist));
+        if (Game1.currentSong != null) {
+            Game1.currentSong.Volume = Curve(shelf, Radius.Maximum, dist);
         }
-        else if (dist > AudibleDistance) {
-            intensity = 0f;
-        }
-        else {
-            intensity = Utility.Lerp(max, 0f, MathF.Sqrt((dist - FullVolumeRadius) /
-                    (AudibleDistance - FullVolumeRadius)));
-        }
-        // 1 - intensity here (not max - intensity) is correct
-        Game1.musicCategory.SetVolume(Math.Min(Game1.musicPlayerVolume,
-                    Game1.options.musicVolumeLevel * (1 - intensity)));
-        Cue.Volume = intensity * Math.Min(Game1.options.ambientVolumeLevel,
-                Game1.ambientPlayerVolume);
     }
+
     public void Stop()
     {
         Cue?.Stop(AudioStopOptions.Immediate);
     }
+
     public bool IsPlaying()
     {
         return Cue.IsPlaying;
     }
+
     public void Dispose()
     {
         Stop();
