@@ -12,7 +12,13 @@ internal sealed class AudioPlayer
     public static string AssetName = $"Mods/{Main.ModId}/Data";
 
     private static Dictionary<string, AudioItem> ActiveItems = new();
+    // items that were previously active but have become inactive.
+    // they go here and fade out before being disposed.
+    private static Dictionary<string, AudioItem> DoomedItems = new();
     private static Vector2 CachedPlayerPosition = Vector2.Zero;
+    internal static float FadeStep = 0.015f;
+    private static float BgmStartVolume = 0f;
+    internal static float BgmGoalVolume = 0f;
     private static HashSet<string> MissingCues = new();
 
     public static Dictionary<string, AudioItem> Data {
@@ -55,7 +61,7 @@ internal sealed class AudioPlayer
             if (!pair.Value.LocationName.Equals(n) ||
                     !GameStateQuery.CheckConditions(pair.Value.Condition)) {
                 if (ActiveItems.Remove(pair.Key, out AudioItem ex)) {
-                    ex.Dispose();
+                    DoomedItems[pair.Key] = ex;
                 }
                 continue;
             }
@@ -76,6 +82,7 @@ internal sealed class AudioPlayer
                     ActiveItems[pair.Key].Cue != null) {
                 AudioItem cpy = pair.Value.Clone();
                 cpy.Cue = ActiveItems[pair.Key].Cue;
+                ActiveItems[pair.Key].Cue = null;
                 ActiveItems[pair.Key] = cpy;
             }
             else {
@@ -87,18 +94,56 @@ internal sealed class AudioPlayer
                 ActiveItems[pair.Key].Cue = Game1.soundBank.GetCue(cue);
             }
         }
+        if (Game1.currentSong != null) {
+            BgmStartVolume = Game1.currentSong.Volume;
+        }
+        // effectively setting force to true for the next TryPlaying
         CachedPlayerPosition = Vector2.Zero;
     }
 
     public static void TryPlaying(bool force = false)
     {
         Vector2 pos = Game1.player.Position;
-        if (!force && pos == CachedPlayerPosition) {
+        // compute target volumes for everything only if needed (or forced)
+        if (force || (pos != CachedPlayerPosition)) {
+            CachedPlayerPosition = pos;
+            BgmGoalVolume = 1f;
+            foreach (AudioItem sound in ActiveItems.Values) {
+                sound.Tick(Game1.currentGameTime);
+            }
+        }
+        // but always set the volume as appropriate (these handle the fade behavior)
+        // note that items which became inactive live elsewhere just to fade out
+        foreach (AudioItem sound in ActiveItems.Values) {
+            sound.StepVolume(Game1.currentGameTime);
+        }
+        StepBgmVolume(Game1.currentGameTime);
+        FadeDoomedItems(Game1.currentGameTime);
+    }
+
+    public static void StepBgmVolume(GameTime gt)
+    {
+        if (Game1.currentSong is null) {
             return;
         }
-        CachedPlayerPosition = pos;
-        foreach (AudioItem sound in ActiveItems.Values) {
-            sound.Tick(Game1.currentGameTime);
+        float vol = Game1.currentSong.Volume;
+        if (vol < BgmGoalVolume) {
+            vol = MathF.Min(vol + FadeStep, BgmGoalVolume);
+        }
+        else {
+            vol = MathF.Max(vol - FadeStep, BgmGoalVolume);
+        }
+        Game1.currentSong.Volume = vol;
+    }
+
+    public static void FadeDoomedItems(GameTime gt)
+    {
+        foreach (var pair in DoomedItems) {
+            pair.Value.Cue.Volume -= FadeStep;
+            if (pair.Value.Cue.Volume <= 0f) {
+                pair.Value.Dispose();
+                DoomedItems.Remove(pair.Key);
+            }
         }
     }
 
@@ -163,11 +208,13 @@ internal sealed class AudioItem
     public string CueName = "";
     public string LocationName = "";
     public float MaximumIntensity = 1.0f;
+    public float MinimumBgmVolume = 0.0f;
     public AudioRadius Radius = new();
     //public List<int> RepeatDelay = new();
     public Point TilePosition = new(-1, -1);
 
-    public ICue Cue { get; set; }
+    internal ICue Cue { get; set; }
+    internal float TargetVolume = 0.0f;
 
     // deliberately does not clone the Cue
     public AudioItem Clone()
@@ -201,8 +248,9 @@ internal sealed class AudioItem
         Vector2 playerPos = Game1.player.getStandingPosition() / 64f;
         Vector2 myPos = new(TilePosition.X + 0.5f, TilePosition.Y + 0.5f);
         float dist = Vector2.Distance(myPos, playerPos);
-        // clamp radius values and max intensity for sanity
+        // clamp radius and max/min values for sanity
         float maxi = MathF.Max(0f, MathF.Min(MaximumIntensity, 1f));
+        float mini = MathF.Max(0f, MathF.Min(MinimumBgmVolume, 1f));
         float floor = MathF.Min(Radius.Floor, Radius.Maximum);
         float shelf = MathF.Min(Radius.Shelf, Radius.Maximum);
 
@@ -216,9 +264,24 @@ internal sealed class AudioItem
             return MathF.Sqrt((t - min) / (max - min));
         };
 
-        Cue.Volume = maxi * (1f - Curve(floor, Radius.Maximum, dist));
+        TargetVolume = maxi * (1f - Curve(floor, Radius.Maximum, dist));
         if (Game1.currentSong != null) {
-            Game1.currentSong.Volume = Curve(shelf, Radius.Maximum, dist);
+            // curve is 0f to 1f, so scale it down and add the minimum
+            float cand = Curve(shelf, Radius.Maximum, dist) * (1f - mini) + mini;
+            AudioPlayer.BgmGoalVolume = MathF.Min(AudioPlayer.BgmGoalVolume, cand);
+        }
+    }
+
+    public void StepVolume(GameTime time)
+    {
+        if (Cue.Volume == TargetVolume) {
+            return;
+        }
+        else if (Cue.Volume < TargetVolume) {
+            Cue.Volume = MathF.Min(Cue.Volume + AudioPlayer.FadeStep, TargetVolume);
+        }
+        else {
+            Cue.Volume = MathF.Max(Cue.Volume - AudioPlayer.FadeStep, TargetVolume);
         }
     }
 
