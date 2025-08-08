@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using StardewValley;
+using StardewValley.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -109,13 +110,16 @@ internal sealed class AudioPlayer
             CachedPlayerPosition = pos;
             BgmGoalVolume = 1f;
             foreach (AudioItem sound in ActiveItems.Values) {
-                sound.Tick(Game1.currentGameTime);
+                sound.ComputeVolume(Game1.currentGameTime, ref BgmGoalVolume);
             }
         }
         // but always set the volume as appropriate (these handle the fade behavior)
         // note that items which became inactive live elsewhere just to fade out
         foreach (AudioItem sound in ActiveItems.Values) {
             sound.StepVolume(Game1.currentGameTime);
+            if (sound.Cue.GetCategoryName() == "Sound") {
+                sound.TickDelay(Game1.currentGameTime);
+            }
         }
         StepBgmVolume(Game1.currentGameTime);
         FadeDoomedItems(Game1.currentGameTime);
@@ -150,12 +154,13 @@ internal sealed class AudioPlayer
     // grr AudioChanges invalidating resets volume
     public static void ReplaceCues()
     {
+        float unused = 1f;
         foreach (AudioItem sound in ActiveItems.Values) {
             if (Game1.soundBank.Exists(sound.CueName)) {
                 sound.Stop();
                 sound.Cue.Dispose();
                 sound.Cue = Game1.soundBank.GetCue(sound.CueName);
-                sound.Tick(Game1.currentGameTime);
+                sound.ComputeVolume(Game1.currentGameTime, ref unused);
                 CachedPlayerPosition = Vector2.Zero;
             }
         }
@@ -210,11 +215,12 @@ internal sealed class AudioItem
     public float MaximumIntensity = 1.0f;
     public float MinimumBgmVolume = 0.0f;
     public AudioRadius Radius = new();
-    //public List<int> RepeatDelay = new();
+    public List<int> RepeatDelay = new() {800, 1000, 1200};
     public Point TilePosition = new(-1, -1);
 
     internal ICue Cue { get; set; }
     internal float TargetVolume = 0.0f;
+    internal int DelayTimer = 0;
 
     // deliberately does not clone the Cue
     public AudioItem Clone()
@@ -224,24 +230,36 @@ internal sealed class AudioItem
             CueName = this.CueName,
             LocationName = this.LocationName,
             MaximumIntensity = this.MaximumIntensity,
+            MinimumBgmVolume = this.MinimumBgmVolume,
             Radius = new AudioRadius {
                 Floor = this.Radius.Floor,
                 Shelf = this.Radius.Shelf,
                 Maximum = this.Radius.Maximum,
             },
+            RepeatDelay = new List<int>(this.RepeatDelay),
             TilePosition = this.TilePosition,
+
+            TargetVolume = this.TargetVolume,
+            DelayTimer = this.DelayTimer,
         };
         return ret;
     }
 
-    public void Tick(GameTime time)
+    /*
+     * Calculates how loud this audio should be (0.0 to 1.0) based on the player's
+     * proximity to its TilePosition. The ref parameter is a float for how quiet
+     * the existing background music should get in response; if our volume requests
+     * a lower bgm volume, it will be saved there.
+     *
+     * Does not set the volume; merely sets the TargetVolume for StepVolume to use.
+     */
+    public void ComputeVolume(GameTime time, ref float bgmTarget)
     {
         if (Cue == null) {
             return;
         }
         // part of the volume faffing on cue reload
-        // FIXME not great for allowing SFX down the road
-        if (!Cue.IsPlaying) {
+        if (Cue.GetCategoryName() == "Music" && !Cue.IsPlaying) {
             Cue.Play();
             Cue.Volume = 0f;
         }
@@ -268,7 +286,32 @@ internal sealed class AudioItem
         if (Game1.currentSong != null) {
             // curve is 0f to 1f, so scale it down and add the minimum
             float cand = Curve(shelf, Radius.Maximum, dist) * (1f - mini) + mini;
-            AudioPlayer.BgmGoalVolume = MathF.Min(AudioPlayer.BgmGoalVolume, cand);
+            bgmTarget = MathF.Min(bgmTarget, cand);
+        }
+    }
+
+    /*
+     * If the audio isn't playing, start (or continue) its delay timer. When it
+     * hits zero, play it.
+     */
+    public void TickDelay(GameTime time)
+    {
+        if (!ShouldTimePassIgnoreFestival()) {
+            return;
+        }
+        if (Cue.IsPlaying) {
+            return;
+        }
+        if (DelayTimer == 0) {
+            DelayTimer = Game1.random.ChooseFrom(RepeatDelay);
+            return;
+        }
+        DelayTimer = Math.Max(0, DelayTimer - time.ElapsedGameTime.Milliseconds);
+        if (DelayTimer == 0) {
+            Cue.Play();
+            // just set straight to target volume. it's already computed for this
+            // tick and it's sfx so we don't need to let it fade in
+            Cue.Volume = TargetVolume;
         }
     }
 
@@ -300,5 +343,20 @@ internal sealed class AudioItem
         Stop();
         Cue?.Dispose();
         Cue = null;
+    }
+
+    // this is pretty nasty. don't do this at home
+    internal static bool ShouldTimePassIgnoreFestival()
+    {
+        GameLocation temp = Game1.currentLocation;
+        bool euTemp = Game1.eventUp;
+
+        Game1.currentLocation = null;
+        Game1.eventUp = false;
+        bool ret = Game1.shouldTimePass();
+        Game1.currentLocation = temp;
+        Game1.eventUp = euTemp;
+
+        return ret;
     }
 }
