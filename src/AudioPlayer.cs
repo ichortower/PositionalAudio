@@ -51,6 +51,11 @@ internal sealed class AudioPlayer
         MissingCues.Clear();
     }
 
+    /*
+     * Given the data from the data asset and a location, determine which audio
+     * items should be active (for handling on frame update) and/or refresh
+     * them if possible.
+     */
     public static void Filter(GameLocation gl = null)
     {
         if (gl == null) {
@@ -102,6 +107,12 @@ internal sealed class AudioPlayer
         CachedPlayerPosition = Vector2.Zero;
     }
 
+    /*
+     * This function runs during UpdateTicked.
+     * Computes playback volume for every active audio item (and, at the same
+     * time, the appropriate adjusted bgm volume). Runs volume faders and
+     * sfx timers.
+     */
     public static void TryPlaying(bool force = false)
     {
         Vector2 pos = Game1.player.Position;
@@ -125,6 +136,9 @@ internal sealed class AudioPlayer
         FadeDoomedItems(Game1.currentGameTime);
     }
 
+    /*
+     * BGM volume fader. Moves one step toward the target volume per frame.
+     */
     public static void StepBgmVolume(GameTime gt)
     {
         if (Game1.currentSong is null) {
@@ -140,6 +154,10 @@ internal sealed class AudioPlayer
         Game1.currentSong.Volume = vol;
     }
 
+    /*
+     * Audio fade-out handler specifically for items which became inactive,
+     * so that they can fade out gracefully before being trashed.
+     */
     public static void FadeDoomedItems(GameTime gt)
     {
         foreach (var pair in DoomedItems) {
@@ -151,7 +169,14 @@ internal sealed class AudioPlayer
         }
     }
 
-    // grr AudioChanges invalidating resets volume
+    /*
+     * Called whenever the data asset is ready. This replaces any existing
+     * active cue with a new one sourced from the sound bank. We can't restore
+     * the play position, but we can preserve the volume (by recomputing it).
+     *
+     * TODO see if we can detect whether a cue's audio stream has not changed,
+     *    and if so avoid replacing it entirely so playback doesn't restart
+     */
     public static void ReplaceCues()
     {
         float unused = 1f;
@@ -160,6 +185,8 @@ internal sealed class AudioPlayer
                 sound.Stop();
                 sound.Cue.Dispose();
                 sound.Cue = Game1.soundBank.GetCue(sound.CueName);
+                // zeroing cached position causes recalc on the next tick, but
+                // that leaves this tick with the default volume, which is wrong
                 sound.ComputeVolume(Game1.currentGameTime, ref unused);
                 CachedPlayerPosition = Vector2.Zero;
             }
@@ -315,6 +342,9 @@ internal sealed class AudioItem
         }
     }
 
+    /*
+     * Cue-specific fader. Moves one step toward TargetVolume per frame.
+     */
     public void StepVolume(GameTime time)
     {
         if (Cue.Volume == TargetVolume) {
@@ -345,7 +375,13 @@ internal sealed class AudioItem
         Cue = null;
     }
 
-    // this is pretty nasty. don't do this at home
+    /*
+     * In order to support having positional audio during festival walk-around
+     * time, I can't use Game1.shouldTimePass on its own, since it returns
+     * false during festivals entirely. To defeat this, this hackjob sets the
+     * current location to null and eventUp to false, calls the function, then
+     * restores them.
+     */
     internal static bool ShouldTimePassIgnoreFestival()
     {
         GameLocation temp = Game1.currentLocation;

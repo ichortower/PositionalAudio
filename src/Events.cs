@@ -35,6 +35,12 @@ internal sealed class Events
     private static Dictionary<NPC, string> Animations = new();
     private static string semaphore = $"{Main.ModId}_NoAnimation";
 
+    /*
+     * In addition to calling AudioPlayer.TryPlaying, this checks what animation
+     * every NPC in the player's location is currently using. If any of them
+     * change (an animation starts or stops), it calls the filter function so
+     * that data items using the NPC_ANIMATING GSQ can become (in)active.
+     */
     public static void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
     {
         if (Game1.player.currentLocation == null) {
