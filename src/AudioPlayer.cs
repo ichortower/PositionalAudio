@@ -324,6 +324,9 @@ internal sealed class AudioItem
         };
 
         TargetVolume = maxi * (1f - Curve(floor, Radius.Maximum, dist));
+        if (TargetVolume > 0.75f && Cue.GetCategoryName() == "Music") {
+            Utility.farmerHeardSong(CueName);
+        }
         if (Game1.currentSong != null) {
             // curve returns 0f to 1f, so scale it down and add the minimum
             float cand = Curve(shelf, Radius.Maximum, dist) * (1f - mini) + mini;
