@@ -161,35 +161,49 @@ internal sealed class AudioPlayer
     public static void FadeDoomedItems(GameTime gt)
     {
         foreach (var pair in DoomedItems) {
-            pair.Value.Cue.Volume -= FadeStep;
-            if (pair.Value.Cue.Volume <= 0f) {
-                pair.Value.Dispose();
-                DoomedItems.Remove(pair.Key);
+            if (pair.Value.Cue is not null) {
+                pair.Value.Cue.Volume -= FadeStep;
+                if (pair.Value.Cue.Volume > 0f) {
+                    continue;
+                }
             }
+            pair.Value.Dispose();
+            DoomedItems.Remove(pair.Key);
         }
     }
 
     /*
-     * Called whenever the data asset is ready. This replaces any existing
-     * active cue with a new one sourced from the sound bank. We can't restore
-     * the play position, but we can preserve the volume (by recomputing it).
-     *
-     * TODO see if we can detect whether a cue's audio stream has not changed,
-     *    and if so avoid replacing it entirely so playback doesn't restart
+     * Called whenever the data asset is ready.
+     * 1. Replace any existing active cue with a new one sourced from the sound
+     *   bank, if the cue name (TODO: or content? maybe via hash?) has changed.
+     * 2. If an active item has been removed from the data asset, doom it.
      */
     public static void ReplaceCues()
     {
         float unused = 1f;
-        foreach (AudioItem sound in ActiveItems.Values) {
-            if (Game1.soundBank.Exists(sound.CueName)) {
-                sound.Stop();
-                sound.Cue.Dispose();
-                sound.Cue = Game1.soundBank.GetCue(sound.CueName);
-                // zeroing cached position causes recalc on the next tick, but
-                // that leaves this tick with the default volume, which is wrong
-                sound.ComputeVolume(Game1.currentGameTime, ref unused);
-                CachedPlayerPosition = Vector2.Zero;
+        // doom
+        var toRemove = ActiveItems.Where(pair => !Data.ContainsKey(pair.Key)).ToArray();
+        foreach (var pair in toRemove) {
+            if (ActiveItems.Remove(pair.Key, out AudioItem ex)) {
+                DoomedItems[pair.Key] = ex;
             }
+        }
+        // replace
+        var toReplace = ActiveItems.Where(pair => Data[pair.Key].CueName != pair.Value.CueName)
+                .ToArray();
+        foreach (var pair in toReplace) {
+            AudioItem sound = pair.Value;
+            sound.Stop();
+            sound.Cue.Dispose();
+            sound.CueName = Data[pair.Key].CueName;
+            if (!Game1.soundBank.Exists(sound.CueName)) {
+                sound.Cue = null;
+                Log.Warn($"Could not replace item '{pair.Key}': cue '{sound.CueName}' not found");
+                continue;
+            }
+            sound.Cue = Game1.soundBank.GetCue(sound.CueName);
+            sound.ComputeVolume(Game1.currentGameTime, ref unused);
+            //CachedPlayerPosition = Vector2.Zero;
         }
     }
 
@@ -311,7 +325,7 @@ internal sealed class AudioItem
 
         TargetVolume = maxi * (1f - Curve(floor, Radius.Maximum, dist));
         if (Game1.currentSong != null) {
-            // curve is 0f to 1f, so scale it down and add the minimum
+            // curve returns 0f to 1f, so scale it down and add the minimum
             float cand = Curve(shelf, Radius.Maximum, dist) * (1f - mini) + mini;
             bgmTarget = MathF.Min(bgmTarget, cand);
         }
@@ -323,6 +337,7 @@ internal sealed class AudioItem
      */
     public void TickDelay(GameTime time)
     {
+        // see function definition for what the deal is here
         if (!ShouldTimePassIgnoreFestival()) {
             return;
         }
@@ -376,14 +391,16 @@ internal sealed class AudioItem
     }
 
     /*
-     * In order to support having positional audio during festival walk-around
-     * time, I can't use Game1.shouldTimePass on its own, since it returns
-     * false during festivals entirely. To defeat this, this hackjob sets the
-     * current location to null and eventUp to false, calls the function, then
-     * restores them.
+     * Hack around Game1.shouldTimePass to support positional audio during
+     * festival walk-around times. To get the desired result, set the current
+     * location to null and eventUp to false, call the function, then restore
+     * them.
      */
     internal static bool ShouldTimePassIgnoreFestival()
     {
+        if (!Game1.isFestival()) {
+            return Game1.shouldTimePass();
+        }
         GameLocation temp = Game1.currentLocation;
         bool euTemp = Game1.eventUp;
 
