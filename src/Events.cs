@@ -1,3 +1,4 @@
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -32,37 +33,65 @@ internal sealed class Events
         }
     }
 
-    private static Dictionary<NPC, string> Animations = new();
     private static string semaphore = $"{Main.ModId}_NoAnimation";
+    private static Dictionary<NPC, NPCState> NPCCache = new();
+    private const int framesPerScan = 20;
+    private static int scanTimer = framesPerScan;
+    private static int gameTime = 600;
 
     /*
-     * In addition to calling AudioPlayer.TryPlaying, this checks what animation
-     * every NPC in the player's location is currently using. If any of them
-     * change (an animation starts or stops), it calls the filter function so
-     * that data items using the NPC_ANIMATING GSQ can become (in)active.
+     * Mainly, this calls AudioPlayer.TryPlaying. Every <framesPerScan> frames,
+     * it also checks all NPCs and determines if any of them have changed
+     * motion or animation state. If they have, it calls the filter function,
+     * so data items can become (in)active.
      */
     public static void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
     {
         if (Game1.player.currentLocation == null) {
             return;
         }
-        bool doFilter = false;
-        foreach (NPC p in Game1.player.currentLocation.characters) {
-            string a = semaphore;
-            if (p.doingEndOfRouteAnimation.Value &&
-                    !string.IsNullOrEmpty(p.endOfRouteBehaviorName.Value)) {
-                a = p.endOfRouteBehaviorName.Value;
+        if (--scanTimer == 0) {
+            if (NeedsRefresh()) {
+                AudioPlayer.Filter(Game1.player.currentLocation);
             }
-            if (Animations.TryGetValue(p, out string ex) && ex != a) {
-                doFilter = true;
-            }
-            Animations[p] = a;
-        }
-        if (doFilter) {
-            Log.Trace("Animation status changed. Refreshing.");
-            AudioPlayer.Filter(Game1.player.currentLocation);
+            scanTimer = framesPerScan;
         }
         AudioPlayer.TryPlaying();
+    }
+
+    /*
+     * returns true if any NPC has changed state (started or stopped moving,
+     * or changed animations), or if clock time has changed.
+     *   side effect: populates NPCCache
+     */
+    internal static bool NeedsRefresh()
+    {
+        bool ret = false;
+        int etime = Game1.timeOfDay;
+        if (etime != gameTime) {
+            ret = true;
+        }
+        gameTime = etime;
+        Utility.ForEachCharacter((npc) => {
+            string anim = semaphore;
+            if (npc.doingEndOfRouteAnimation.Value &&
+                    !string.IsNullOrEmpty(npc.endOfRouteBehaviorName.Value)) {
+                anim = npc.endOfRouteBehaviorName.Value;
+            }
+            NPCState s = new NPCState {
+                Moving = (npc.controller?.pathToEndPoint?.Count ?? 0) > 0,
+                Animation = anim,
+            };
+            // return true from outer func if an NPC has changed state
+            if (NPCCache.TryGetValue(npc, out NPCState ex) && ex != s) {
+                ret = true;
+            }
+            NPCCache[npc] = s;
+            // this is for the ForEachCharacter delegate, not this func.
+            // always return true to keep iterating (ensure cache is correct)
+            return true;
+        });
+        return ret;
     }
 
     public static void OnPlayerWarped(object sender, WarpedEventArgs e)
@@ -71,7 +100,7 @@ internal sealed class Events
             return;
         }
         AudioPlayer.Stop();
-        Animations.Clear();
+        NPCCache.Clear();
         AudioPlayer.Filter(e.NewLocation);
     }
 
@@ -80,4 +109,14 @@ internal sealed class Events
         AudioPlayer.Stop();
         AudioPlayer.Filter(Game1.player.currentLocation);
     }
+}
+
+/*
+ * Holds an NPC's moving state and animation string. Used for caching to
+ * reduce frequency of calling AudioPlayer.Filter.
+ */
+internal record struct NPCState
+{
+    public bool Moving;
+    public string Animation;
 }
