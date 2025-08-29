@@ -8,6 +8,9 @@ audio to Stardew Valley.
 * [Adding Audio Items](#adding-audio-items)
   * [Content Patcher example](#content-patcher-example)
 * [Audio Behavior](#audio-behavior)
+  * [Audio Types](#audio-types)
+  * [Refreshing](#refreshing)
+  * [Calculating Volume](#calculating-volume)
 * [New Game State Queries](#new-game-state-queries)
   * [NPC Position](#npc-position)
   * [NPC Animations](#npc-animations)
@@ -45,11 +48,11 @@ like most 1.6-era data items. The model (object) has the following fields:
 A [game state query](https://stardewvalleywiki.com/Modding:Game_state_queries)
 specifying the conditions under which this audio item will play. These
 conditions are reevaluated with some frequency (but not constantly) in order to
-allow the active items to change in (near) real time.
+allow the active items to change in (near) real time: see the
+[Refreshing](#refreshing) section for details.
 
 This mod also adds [some queries](#new-game-state-queries) to provide a few
-NPC status checks which may be helpful. These, and the TIME query, are why the
-reevaluation is as frequent as it is: see that section for more details.
+NPC status checks which may be helpful.
 
 This field is checked after `Location`: see that field for details.
 
@@ -103,7 +106,7 @@ multiple locations; if you need that at this time, define multiple items.
 How loud the audio item will be, at maximum, when you have reached the source
 area (see `Radius` for more information). This value must range from 0.0 to 1.0
 (it will be clamped), and reflects the maximum volume as a percentage of the
-cue's native volume.
+cue's native volume, so e.g. `0.85` would be 85%.
 
 *Default:* `1.0`
 
@@ -118,7 +121,7 @@ cue's native volume.
 How quiet the game's current background music will become when you reach the
 closest fade-out distance (see `Radius` for more information). This value must
 range from 0.0 to 1.0 (it will be clamped), and reflects the minimum volume as
-a percentage of the normal volume.
+a percentage of the normal volume, so e.g. `0.1` would be 10%.
 
 *Default:* `0.0`
 
@@ -149,7 +152,8 @@ tiles.
 
 When the player moves near the audio's tile position within these three
 distances, the mod will calculate volumes on every frame that the player's
-position changes. See [Audio Behavior](#audio-behavior) for more details.
+position changes. See [Calculating Volume](#calculating-volume) for more
+details.
 
 *Default:* `{"Floor": 2.0, "Shelf": 4.0, "Maximum": 8.0}`
 
@@ -195,27 +199,77 @@ calculate volume levels.
 </table>
 
 
-## Configuration
-
-There is only one config setting for this mod, but it is important: you can
-manually set the delay between checking for NPC state updates. The option is
-called `PollDelay` and its default value is `20`: every 20 ticks, the mod will
-check every NPC to determine whether the overall state has changed: i.e. if any
-NPC has started or stopped animating, or started or stopped moving to a new
-schedule point. If the state has changed, then all items in the data asset are
-rechecked and enabled/disabled as appropriate for the new state.
-
-I have tried to make the mod avoid as much work as possible during this
-process, but with unknowable mod loadouts out there, it is possible that every
-20 frames is too frequent for some users, so you can increase this value if you
-notice any performance issues. Note that the higher this number, the longer on
-average you will expect to wait after a state change for audio to turn on or
-off in response: the average delay is half this number of frames. So, for
-example, if you use the value `60` (one second), you should expect on average
-to wait 30 frames (half a second) for changes to be reflected.
-
-
 ## Audio Behavior
+
+### Audio Types
+
+The `Category` of an audio item determines its behavior in this mod in a few
+ways, beyond just determining which volume slider in the game options applies
+to it.
+
+First, the data asset field `RepeatDelay` applies only to cues in the Sound
+category, and is ignored for Music and Ambient cues.
+
+Second, the field `Looped` in a Music or Ambient cue applies normally, but this
+mod will automatically restart any such cue that should be playing but has
+stopped. The result is that all music or ambient cues will (effectively) loop
+when used with this framework, but if you don't specify `"Looped": true`, you
+will hear a brief fade-in as the audio system restarts the cue and gently ramps
+up its volume. This may be what you want, but be aware of it.
+
+### Refreshing
+
+In order to allow audio to begin playing as soon as possible (for example, as
+soon as an NPC arrives at the location that an audio item checks for), this mod
+attempts to keep the active audio items up to date in real time, without
+requiring user action, by reexamining the data asset with some frequency. This
+occurs whenever one of the following happens:
+
+1. The player changes locations.
+2. The in-game time advances to the next 10 minutes.
+3. Any NPC leaves their current schedule spot and departs for the next one.
+4. Any NPC arrives at their next schedule spot.
+5. Any NPC starts or stops playing a schedule animation.
+
+With the exception of the player changing location (which is tied to the
+PlayerWarped event), the mod checks for state changes only every 20 frames, in
+an attempt to reduce performance impact. This means that on average, you should
+expect a delay of 10 frames before audio starts or stops in response to a
+change in condition evaluation.
+
+(I have not profiled this. The state check does not proceed to reevaluation of
+the audio items (the costlier operation) unless it sees that something relevant
+has changed. The state check is not very costly on its own, but it iterates
+over all NPCs, and as that gets worse with more mods installed, I don't think I
+want to run that every frame if it can be avoided.)
+
+### Calculating Volume
+
+This mod calculates the volume for its audio items in two ways: first, when a
+Music or Ambient item has just started playing, it will start at zero volume
+and fade in to its target volume (see below), and likewise when it stops
+playing due to condition changes, it will fade out gradually to zero instead of
+abruptly stopping. Sound category cues do not have this behavior and will play
+immediately at full strength.
+
+Second, when the player moves around in a location with active items, on every
+frame that their position changes, each item will calculate the player's
+distance and use its `Radius`, `MaximumIntensity`, and `MinimumBgmVolume`
+fields to figure out 1. how loud this item should be right now, and 2. how
+quiet the background music should be in response. If multiple items are active,
+they will all play, but only the quietest calculated BGM volume will apply.
+
+The item's volume scales from 0 (any position outside of the Maximum radius) to
+MaximumIntensity (any position within the Floor radius). The intensity is
+calculated with a square root curve, which is not linear, but due to how
+loudness is perceived, it should sound approximately linear to human ears. The
+same applies to the background music, except scaled from MinimumBgmVolume to 1
+over the distance from Shelf to Maximum radius.
+
+If a Music category cue's playing volume goes over 0.75 by this calculation, it
+will be added to the player's heard music tracks and will show up in the
+jukebox like any other. If you don't want your tracks appearing there,
+[make sure to account for it](https://stardewvalleywiki.com/Modding:Jukebox_tracks).
 
 
 ## New Game State Queries
@@ -258,9 +312,4 @@ performing a schedule animation with a given key:
 Name and location work just like the other queries, and the animation name
 should be a key specified in the `Data/animationDescriptions` asset. If the NPC
 is in the given location and doing the named animation, this will return true.
-
-### Getting Updates
-
-NPC position and animation status are notoriously real-time bits of data, so you may be concerned
-You can use these queries in your audio items' `Condition` fields without worryin
 

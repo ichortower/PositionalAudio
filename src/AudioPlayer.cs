@@ -300,7 +300,8 @@ internal sealed class AudioItem
             return;
         }
         // part of the volume faffing on cue reload
-        if (Cue.GetCategoryName() == "Music" && !Cue.IsPlaying) {
+        string cat = Cue.GetCategoryName();
+        if ((cat == "Music" || cat == "Ambient") && !Cue.IsPlaying) {
             Cue.Play();
             Cue.Volume = 0f;
         }
