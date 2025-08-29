@@ -74,6 +74,9 @@ internal sealed class Hooks
             Log.Error($"Query '{string.Join(" ", query)}' requested nonexistent NPC '{name}'");
             return false;
         }
+        if ((who.controller?.pathToEndPoint?.Count ?? 0) > 0) {
+            return false;
+        }
         if (who.currentLocation != location) {
             return false;
         }
@@ -98,6 +101,9 @@ internal sealed class Hooks
         NPC who = Game1.getCharacterFromName(name);
         if (who is null) {
             Log.Error($"Query '{string.Join(" ", query)}' requested nonexistent NPC '{name}'");
+            return false;
+        }
+        if ((who.controller?.pathToEndPoint?.Count ?? 0) > 0) {
             return false;
         }
         if (who.currentLocation == location && rect.Contains(who.TilePoint)) {
