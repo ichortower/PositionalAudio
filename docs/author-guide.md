@@ -252,7 +252,9 @@ that it is faintly audible in Penny's room.
 Since the cue is `Looped`, one of the three tracks will be selected on location
 entry or activation time and will play continuously. If the player leaves and
 re-enters the location, a new one will be chosen (see [Cues With Multiple File
-Paths](#cues-with-multiple-file-paths)).
+Paths](#cues-with-multiple-file-paths)). If you choose instead to set Looped to
+false, then whenever the chosen track finishes playing, a new choice will be
+made and that one will start.
 
 
 ## Audio Behavior
