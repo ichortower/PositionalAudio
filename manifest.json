@@ -2,10 +2,10 @@
   "Name": "Positional Audio",
   "Author": "ichortower",
   "Description": "Plays music and sound effects based on player proximity.",
-  "Version": "0.8.0-beta",
+  "Version": "1.0.0",
   "UniqueID": "ichortower.PositionalAudio",
   "EntryDll": "PositionalAudio.dll",
-  "MinimumApiVersion": "4.1.0",
-  "UpdateKeys": ["Nexus:-1", "GitHub:ichortower/PositionalAudio"],
+  "MinimumApiVersion": "4.1.10",
+  "UpdateKeys": ["Nexus:37134", "GitHub:ichortower/PositionalAudio"],
   "Dependencies": []
 }
