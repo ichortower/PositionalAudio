@@ -64,7 +64,7 @@ internal sealed class AudioPlayer
         }
         string n = gl.NameOrUniqueName;
         foreach (var pair in Data) {
-            if (!pair.Value.LocationName.Equals(n) ||
+            if (!pair.Value.Location.Equals(n) ||
                     !GameStateQuery.CheckConditions(pair.Value.Condition)) {
                 if (ActiveItems.Remove(pair.Key, out AudioItem ex)) {
                     DoomedItems[pair.Key] = ex;
@@ -252,7 +252,7 @@ internal sealed class AudioItem
 {
     public string Condition = "";
     public string CueName = "";
-    public string LocationName = "";
+    public string Location = "";
     public float MaximumIntensity = 1.0f;
     public float MinimumBgmVolume = 0.0f;
     public AudioRadius Radius = new();
@@ -269,7 +269,7 @@ internal sealed class AudioItem
         AudioItem ret = new() {
             Condition = this.Condition,
             CueName = this.CueName,
-            LocationName = this.LocationName,
+            Location = this.Location,
             MaximumIntensity = this.MaximumIntensity,
             MinimumBgmVolume = this.MinimumBgmVolume,
             Radius = new AudioRadius {
