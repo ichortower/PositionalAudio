@@ -6,15 +6,16 @@ audio to Stardew Valley.
 ## Contents
 
 * [Adding Audio Items](#adding-audio-items)
+  * [Data Format](#data-format)
   * [Content Patcher example](#content-patcher-example)
 * [Audio Behavior](#audio-behavior)
   * [Audio Types](#audio-types)
   * [Refreshing](#refreshing)
   * [Calculating Volume](#calculating-volume)
+  * [Cues With Multiple File Paths](#cues-with-multiple-file-paths)
 * [New Game State Queries](#new-game-state-queries)
   * [NPC Position](#npc-position)
   * [NPC Animations](#npc-animations)
-  * [Getting Updates](#getting-updates)
 
 
 ## Adding Audio Items
@@ -30,7 +31,9 @@ asset:
 The asset is a `string->object` dictionary. The `string` keys are item IDs, and
 should be [unique string
 IDs](https://stardewvalleywiki.com/Modding:Common_data_field_types#Unique_string_ID),
-like most 1.6-era data items. The model (object) has the following fields:
+like most 1.6-era data items. The object has the following format:
+
+### Data Format
 
 <table>
 
@@ -199,6 +202,59 @@ calculate volume levels.
 </table>
 
 
+## Content Patcher Example
+
+Let's say you want to make Pam's television in the trailer audible to the
+player. The patches to accomplish this might look like this:
+
+```js
+{
+  "Target": "Data/AudioChanges",
+  "Action": "EditData",
+  "Entries": {
+    "{{ModId}}_PamsTeeveeTrailerCue": {
+      "Id": "{{ModId}}_PamsTeeveeTrailerCue",
+      "FilePaths": [
+        "{{AbsoluteFilePath: assets/music/PamTeevee1.ogg}}",
+        "{{AbsoluteFilePath: assets/music/PamTeevee2.ogg}}",
+        "{{AbsoluteFilePath: assets/music/PamTeevee3.ogg}}"
+      ],
+      "Category": "Music",
+      "StreamedVorbis": true,
+      "Looped": true
+    }
+  }
+},
+{
+  "Target": "Mods/ichortower.PositionalAudio/Data",
+  "Action": "EditData",
+  "Entries": {
+    "{{ModId}}_PamsTeeveeTrailerPA": {
+      "Condition": "ichortower.PositionalAudio_NPC_ANIMATING Pam Here pam_sit_down",
+      "CueName": "{{ModId}}_PamsTeeveeTrailerCue",
+      "LocationName": "Trailer",
+      "MinimumBgmVolume": 0.1,
+      "Radius": {
+        "Floor": 3.0,
+        "Shelf": 3.0,
+        "Maximum": 15.0
+      },
+      "TilePosition": { "X": 15, "Y": 8 }
+    }
+  }
+}
+```
+
+This creates an audio item centered on the television which will play whenever
+Pam is in the trailer sitting on her couch. The maximum radius is high enough
+that it is faintly audible in Penny's room.
+
+Since the cue is `Looped`, one of the three tracks will be selected on location
+entry or activation time and will play continuously. If the player leaves and
+re-enters the location, a new one will be chosen (see [Cues With Multiple File
+Paths](#cues-with-multiple-file-paths)).
+
+
 ## Audio Behavior
 
 ### Audio Types
@@ -214,8 +270,8 @@ Second, the field `Looped` in a Music or Ambient cue applies normally, but this
 mod will automatically restart any such cue that should be playing but has
 stopped. The result is that all music or ambient cues will (effectively) loop
 when used with this framework, but if you don't specify `"Looped": true`, you
-will hear a brief fade-in as the audio system restarts the cue and gently ramps
-up its volume. This may be what you want, but be aware of it.
+will hear a brief fade-in as the mod restarts the cue and gently ramps up its
+volume. This may be what you want, but be aware of it.
 
 ### Refreshing
 
@@ -271,6 +327,15 @@ will be added to the player's heard music tracks and will show up in the
 jukebox like any other. If you don't want your tracks appearing there,
 [make sure to account for it](https://stardewvalleywiki.com/Modding:Jukebox_tracks).
 
+### Cues With Multiple File Paths
+
+When patching `Data/AudioChanges`, you can specify as many file paths as you
+wish for a given audio cue: as normal, one file will be chosen at random when
+the cue is played. For cues with Looped: true, this means that the selected
+file will loop and continue to play until the cue stops, typically by
+conditions changing or by the player leaving the location. If Looped is false,
+the cue will be replayed, so a new random selection will be made.
+
 
 ## New Game State Queries
 
@@ -281,8 +346,9 @@ capabilities: checking NPC positions and checking active NPC animations.
 ### NPC Position
 
 There are two queries to check for an NPC to be at a particular position in a
-given location. One checks for specific tile coordinates, and the other checks
-for presence in a rectangular area.
+given location (and not moving to a new spot: see below). One checks for
+specific tile coordinates, and the other checks for presence in a rectangular
+area, which is useful when an NPC is square walking.
 
 For specific tiles:
 
@@ -301,6 +367,14 @@ For a rectangle:
 This works just like the coordinates version, except it expects exactly four
 integers to define a rectangle (x, y, width, and height, in that order). If the
 NPC is anywhere within that rectangle, it will return true.
+
+**Careful**: both of these queries also rely on the NPC not being in transit to
+their next schedule point (thankfully, they are not considered in transit
+during a square-walking stop on their schedule). This check addresses the case
+where an NPC starts leaving their spot, triggering a refresh, but they are
+still calculated to be in the same tile position, so the query would still be
+satisfied and the audio would continue until the next refresh, up to seven-ish
+seconds later.
 
 ### NPC Animations
 
