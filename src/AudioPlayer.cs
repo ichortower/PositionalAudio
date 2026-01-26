@@ -65,6 +65,7 @@ internal sealed class AudioPlayer
         string n = gl.NameOrUniqueName;
         foreach (var pair in Data) {
             if (!pair.Value.Location.Equals(n) ||
+                    Events.IsBlockingMinigameUp ||
                     !GameStateQuery.CheckConditions(pair.Value.Condition)) {
                 if (ActiveItems.Remove(pair.Key, out AudioItem ex)) {
                     DoomedItems[pair.Key] = ex;
@@ -85,7 +86,7 @@ internal sealed class AudioPlayer
             // maintain existing cue if already valid and not changed
             if (ActiveItems.ContainsKey(pair.Key) &&
                     ActiveItems[pair.Key].CueName.Equals(cue) &&
-                    ActiveItems[pair.Key].Cue != null) {
+                    ActiveItems[pair.Key].Cue is not null) {
                 AudioItem cpy = pair.Value.Clone();
                 cpy.Cue = ActiveItems[pair.Key].Cue;
                 ActiveItems[pair.Key].Cue = null;
@@ -100,7 +101,7 @@ internal sealed class AudioPlayer
                 ActiveItems[pair.Key].Cue = Game1.soundBank.GetCue(cue);
             }
         }
-        if (Game1.currentSong != null) {
+        if (Game1.currentSong is not null) {
             BgmStartVolume = Game1.currentSong.Volume;
         }
         // effectively setting force to true for the next TryPlaying
@@ -145,10 +146,13 @@ internal sealed class AudioPlayer
             return;
         }
         float vol = Game1.currentSong.Volume;
-        if (vol < BgmGoalVolume) {
+        if (vol == BgmGoalVolume) {
+            return;
+        }
+        else if (vol < BgmGoalVolume) {
             vol = MathF.Min(vol + FadeStep, BgmGoalVolume);
         }
-        else {
+        else { // if vol > BgmGoalVolume
             vol = MathF.Max(vol - FadeStep, BgmGoalVolume);
         }
         Game1.currentSong.Volume = vol;
@@ -328,11 +332,9 @@ internal sealed class AudioItem
         if (TargetVolume > 0.75f && Cue.GetCategoryName() == "Music") {
             Utility.farmerHeardSong(CueName);
         }
-        if (Game1.currentSong != null) {
-            // curve returns 0f to 1f, so scale it down and add the minimum
-            float cand = Curve(shelf, Radius.Maximum, dist) * (1f - mini) + mini;
-            bgmTarget = MathF.Min(bgmTarget, cand);
-        }
+        // curve returns 0f to 1f, so scale it down and add the minimum
+        float cand = Curve(shelf, Radius.Maximum, dist) * (1f - mini) + mini;
+        bgmTarget = MathF.Min(bgmTarget, cand);
     }
 
     /*

@@ -259,6 +259,12 @@ made and that one will start.
 
 ## Audio Behavior
 
+In addition to the `Condition` and `Location` fields in the audio item data,
+there is one more condition that currently applies to all items: if the player
+is playing a minigame (Journey of the Prairie King, the crane game at the
+movie theater, darts, etc., but not including fishing), all items will be
+disabled.
+
 ### Audio Types
 
 The `Category` of an audio item determines its behavior in this mod in a few
@@ -284,10 +290,11 @@ requiring user action, by reexamining the data asset with some frequency. This
 occurs whenever one of the following happens:
 
 1. The player changes locations.
-2. The in-game time advances to the next 10 minutes.
-3. Any NPC leaves their current schedule spot and departs for the next one.
-4. Any NPC arrives at their next schedule spot.
-5. Any NPC starts or stops playing a schedule animation.
+2. The player starts or stops playing a minigame (except fishing).
+3. The in-game time advances to the next 10 minutes.
+4. Any NPC leaves their current schedule spot and departs for the next one.
+5. Any NPC arrives at their next schedule spot.
+6. Any NPC starts or stops playing a schedule animation.
 
 With the exception of the player changing location (which is tied to the
 PlayerWarped event), the mod checks for state changes only every 20 frames, in

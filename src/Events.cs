@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
+using StardewValley.Minigames;
 using System.Collections.Generic;
 
 namespace ichortower.PositionalAudio;
@@ -35,9 +36,17 @@ internal sealed class Events
 
     private static string semaphore = $"{Main.ModId}_NoAnimation";
     private static Dictionary<NPC, NPCState> NPCCache = new();
+    private static bool minigameUpLastTime = false;
     private const int framesPerScan = 20;
     private static int scanTimer = framesPerScan;
     private static int gameTime = 600;
+
+    public static bool IsBlockingMinigameUp {
+        get {
+            return Game1.currentMinigame is not null &&
+                    Game1.currentMinigame is not FishingGame;
+        }
+    }
 
     /*
      * Mainly, this calls AudioPlayer.TryPlaying. Every <framesPerScan> frames,
@@ -61,17 +70,28 @@ internal sealed class Events
 
     /*
      * returns true if any NPC has changed state (started or stopped moving,
-     * or changed animations), or if clock time has changed.
+     * or changed animations), or if clock time has changed, or if the player
+     * has started or stopped a minigame (excluding fishing).
      *   side effect: populates NPCCache
      */
     internal static bool NeedsRefresh()
     {
         bool ret = false;
+        // if current minigame status has changed since last check
+        bool minigameUpNow = IsBlockingMinigameUp;
+        if (minigameUpNow != minigameUpLastTime) {
+            ret = true;
+        }
+        minigameUpLastTime = minigameUpNow;
+
+        // if time of day has changed since last check
         int etime = Game1.timeOfDay;
         if (etime != gameTime) {
             ret = true;
         }
         gameTime = etime;
+
+        // if any character has changed state
         Utility.ForEachCharacter((npc) => {
             string anim = semaphore;
             if (npc.doingEndOfRouteAnimation.Value &&
