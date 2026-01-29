@@ -99,6 +99,7 @@ internal sealed class AudioPlayer
                 }
                 ActiveItems[pair.Key] = pair.Value.Clone();
                 ActiveItems[pair.Key].Cue = Game1.soundBank.GetCue(cue);
+                ActiveItems[pair.Key].InitialFullVolume = true;
             }
         }
         if (Game1.currentSong is not null) {
@@ -266,6 +267,7 @@ internal sealed class AudioItem
     internal ICue Cue { get; set; }
     internal float TargetVolume = 0.0f;
     internal int DelayTimer = 0;
+    internal bool InitialFullVolume = false;
 
     // deliberately does not clone the Cue
     public AudioItem Clone()
@@ -286,6 +288,7 @@ internal sealed class AudioItem
 
             TargetVolume = this.TargetVolume,
             DelayTimer = this.DelayTimer,
+            InitialFullVolume = this.InitialFullVolume,
         };
         return ret;
     }
@@ -368,6 +371,11 @@ internal sealed class AudioItem
      */
     public void StepVolume(GameTime time)
     {
+        if (InitialFullVolume) {
+            Cue.Volume = TargetVolume;
+            InitialFullVolume = false;
+            return;
+        }
         if (Cue.Volume == TargetVolume) {
             return;
         }
