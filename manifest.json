@@ -1,8 +1,8 @@
 {
   "Name": "Positional Audio",
   "Author": "ichortower",
-  "Description": "Plays music and sound effects based on player proximity.",
-  "Version": "1.0.1",
+  "Description": "Framework for setting up music and sound effects to play based on player proximity.",
+  "Version": "1.0.2",
   "UniqueID": "ichortower.PositionalAudio",
   "EntryDll": "PositionalAudio.dll",
   "MinimumApiVersion": "4.1.10",
