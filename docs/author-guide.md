@@ -277,9 +277,9 @@ category, and is ignored for Music and Ambient cues.
 Second, the field `Looped` in a Music or Ambient cue applies normally, but this
 mod will automatically restart any such cue that should be playing but has
 stopped. The result is that all music or ambient cues will (effectively) loop
-when used with this framework, but if you don't specify `"Looped": true`, you
-will hear a brief fade-in as the mod restarts the cue and gently ramps up its
-volume. This may be what you want, but be aware of it.
+when used with this framework, but if you don't specify `"Looped": true`, each
+play will be a fresh cue and will re-choose from the available file paths
+(see [Cues With Multiple File Paths](#cues-with-multiple-file-paths)).
 
 ### Refreshing
 
@@ -310,19 +310,22 @@ want to run that every frame if it can be avoided.)
 
 ### Calculating Volume
 
-This mod calculates the volume for its audio items in two ways: first, when a
-Music or Ambient item has just started playing, it will start at zero volume
-and fade in to its target volume (see below), and likewise when it stops
-playing due to condition changes, it will fade out gradually to zero instead of
-abruptly stopping. Sound category cues do not have this behavior and will play
-immediately at full strength.
+This mod controls the volume of its audio items in two ways: first, it
+determines what the volume should be, and second, in most situations it allows
+the volume to ramp slowly to the target rather than abruptly jumping. The
+gradual fading behavior applies when an item stops, and when the player's
+position (and thus the desired volume) changes, but it is ignored when an item
+has just started playing; this means if the player is right next to an audio
+source when it begins playing, it will start at full volume right away, but if
+they move closer after it starts (much more likely), it will fade in with
+proximity, as usual.
 
-Second, when the player moves around in a location with active items, on every
-frame that their position changes, each item will calculate the player's
-distance and use its `Radius`, `MaximumIntensity`, and `MinimumBgmVolume`
-fields to figure out 1. how loud this item should be right now, and 2. how
-quiet the background music should be in response. If multiple items are active,
-they will all play, but only the quietest calculated BGM volume will apply.
+When the player moves around in a location with active items, on every frame
+that their position changes, each item will calculate the player's distance
+and use its `Radius`, `MaximumIntensity`, and `MinimumBgmVolume` fields to
+figure out 1. how loud this item should be right now, and 2. how quiet the
+background music should be in response. If multiple items are active, they
+will all play, but only the quietest calculated BGM volume will apply.
 
 The item's volume scales from 0 (any position outside of the Maximum radius) to
 MaximumIntensity (any position within the Floor radius). The intensity is
