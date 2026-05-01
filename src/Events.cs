@@ -56,7 +56,7 @@ internal sealed class Events
      */
     public static void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
     {
-        if (Game1.player.currentLocation == null) {
+        if (Game1.player.currentLocation is null) {
             return;
         }
         if (--scanTimer == 0) {
@@ -117,6 +117,12 @@ internal sealed class Events
     public static void OnPlayerWarped(object sender, WarpedEventArgs e)
     {
         if (!e.IsLocalPlayer) {
+            return;
+        }
+        // even though Filter will correctly end cues when Game1.currentLocation
+        // is null, this dumpout remains so that no work is done until the correct
+        // (final) warp fires for the farmhand
+        if (Game1.currentLocation is null) {
             return;
         }
         AudioPlayer.Stop();
