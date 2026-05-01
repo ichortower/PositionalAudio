@@ -1,16 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<RootNamespace>ichortower.PositionalAudio</RootNamespace>
-		<Version>1.0.2</Version>
-		<TargetFramework>net6.0</TargetFramework>
-		<Configuration>Release</Configuration>
-		<EnableHarmony>false</EnableHarmony>
+    <PropertyGroup>
+        <RootNamespace>ichortower.PositionalAudio</RootNamespace>
+        <Version>1.0.3</Version>
+        <TargetFramework>net6.0</TargetFramework>
+        <Configuration>Release</Configuration>
+        <EnableHarmony>false</EnableHarmony>
 
-		<ModFolderName>PositionalAudio</ModFolderName>
-		<EnableModZip>false</EnableModZip>
-	</PropertyGroup>
+        <ModFolderName>PositionalAudio</ModFolderName>
+        <EnableModZip>false</EnableModZip>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
-	</ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" />
+    </ItemGroup>
 </Project>
