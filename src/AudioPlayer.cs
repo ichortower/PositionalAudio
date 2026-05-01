@@ -58,13 +58,17 @@ internal sealed class AudioPlayer
      */
     public static void Filter(GameLocation gl = null)
     {
-        if (gl == null) {
+        if (gl is null) {
             ClearActive();
             return;
         }
         string n = gl.NameOrUniqueName;
         foreach (var pair in Data) {
-            if (!pair.Value.Location.Equals(n) ||
+            // the Game1.currentLocation dumpout is for shadow realm farmhands, since
+            // any location-checking GSQ (including ours) will barf if checking 'Here'
+            // or 'Target' when it is null
+            if (Game1.currentLocation is null ||
+                    !pair.Value.Location.Equals(n) ||
                     Events.IsBlockingMinigameUp ||
                     !GameStateQuery.CheckConditions(pair.Value.Condition)) {
                 if (ActiveItems.Remove(pair.Key, out AudioItem ex)) {
