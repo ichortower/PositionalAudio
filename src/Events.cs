@@ -56,7 +56,7 @@ internal sealed class Events
      */
     public static void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
     {
-        if (Game1.player.currentLocation == null) {
+        if (Game1.currentLocation is null || Game1.player.currentLocation is null) {
             return;
         }
         if (--scanTimer == 0) {
@@ -119,6 +119,9 @@ internal sealed class Events
         if (!e.IsLocalPlayer) {
             return;
         }
+        if (Game1.currentLocation is null) {
+            return;
+        }
         AudioPlayer.Stop();
         NPCCache.Clear();
         AudioPlayer.Filter(e.NewLocation);
@@ -126,6 +129,9 @@ internal sealed class Events
 
     public static void OnDayStarted(object sender, DayStartedEventArgs e)
     {
+        if (Game1.currentLocation is null) {
+            return;
+        }
         AudioPlayer.Stop();
         AudioPlayer.Filter(Game1.player.currentLocation);
     }
