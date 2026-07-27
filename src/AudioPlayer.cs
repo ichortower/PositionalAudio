@@ -410,23 +410,23 @@ internal sealed class AudioItem
 
     /*
      * Hack around Game1.shouldTimePass to support positional audio during
-     * festival walk-around times. To get the desired result, set the current
-     * location to null and eventUp to false, call the function, then restore
-     * them.
+     * festival walk-around times. To get the desired result, set the
+     * location's event and the eventUp flag to false, call the function,
+     * then restore them.
      */
     internal static bool ShouldTimePassIgnoreFestival()
     {
-        if (!Game1.isFestival()) {
+        if (Game1.currentLocation is null || !Game1.isFestival()) {
             return Game1.shouldTimePass();
         }
-        GameLocation temp = Game1.currentLocation;
-        bool euTemp = Game1.eventUp;
+        StardewValley.Event tempEvent = Game1.currentLocation.currentEvent;
+        bool tempEventUp = Game1.eventUp;
 
-        Game1.currentLocation = null;
+        Game1.currentLocation.currentEvent = null;
         Game1.eventUp = false;
         bool ret = Game1.shouldTimePass();
-        Game1.currentLocation = temp;
-        Game1.eventUp = euTemp;
+        Game1.currentLocation.currentEvent = tempEvent;
+        Game1.eventUp = tempEventUp;
 
         return ret;
     }
